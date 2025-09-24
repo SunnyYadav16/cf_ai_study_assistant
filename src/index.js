@@ -47,7 +47,7 @@ export default {
   }
 };
 
-async function handleChatRequest(request, env, corsHeaders) {
+export async function handleChatRequest(request, env, corsHeaders) {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405, headers: corsHeaders });
   }
@@ -80,10 +80,10 @@ async function handleChatRequest(request, env, corsHeaders) {
   try {
     const prompt = buildPrompt(message, recentHistory);
 
-    // Use Cloudflare AI
+    // Use Cloudflare AI with increased token limit
     const response = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
       prompt: prompt,
-      max_tokens: 500,
+      max_tokens: 2048,  // Increased from 500 to 2048 for complete responses
       temperature: 0.7
     });
 
@@ -424,6 +424,17 @@ function getHTMLContent() {
             font-family: 'Courier New', monospace;
             font-size: 13px;
         }
+        
+        .message-content strong { font-weight: bold; }
+        
+        .message-content em { font-style: italic; }
+        
+        .message-content ul, .message-content ol { 
+          margin: 10px 0; 
+          padding-left: 20px; 
+        }
+        
+        .message-content li { margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -552,11 +563,45 @@ class StudyAssistant {
   }
 
   formatMessage(content) {
-    return content
-      .replace(/\`\`\`(.*?)\`\`\`/gs, '<pre><code>$1</code></pre>')
-      .replace(/\`([^\`]+)\`/g, '<code>$1</code>')
-      .replace(/\\n/g, '<br>');
-  }
+  // First, escape HTML to prevent XSS
+  let formatted = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+  
+  // Handle code blocks with triple backticks
+  formatted = formatted.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, '<pre><code>$1</code></pre>');
+  
+  // Handle inline code with single backticks
+  formatted = formatted.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+  
+  // Handle bold text with ** or __
+  formatted = formatted.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+  formatted = formatted.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  
+  // Handle italic text with * or _
+  formatted = formatted.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+  formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
+  
+  // Handle numbered lists (1. 2. 3. etc)
+  formatted = formatted.replace(/^(\\d+)\\.\\s+(.+)$/gm, '<li>$2</li>');
+  
+  // Handle bullet points with * or -
+  formatted = formatted.replace(/^\\*\\s+(.+)$/gm, '<li>$1</li>');
+  formatted = formatted.replace(/^-\\s+(.+)$/gm, '<li>$1</li>');
+  
+  // Wrap consecutive <li> elements in <ul>
+  formatted = formatted.replace(/(<li>.*<\\/li>\\s*)+/g, function(match) {
+    return '<ul>' + match + '</ul>';
+  });
+  
+  // Handle line breaks
+  formatted = formatted.replace(/\\n/g, '<br>');
+  
+  return formatted;
+}
 
   async startVoiceInput() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
