@@ -28,7 +28,9 @@ An AI-powered study assistant built on Cloudflare Workers that helps students le
 ## Local Development
 ```bash
 npm run dev
+```
 
 ## Production Development
 ```bash
 https://cf-ai-study-assistant.yadav-sunny.workers.dev/
+```
